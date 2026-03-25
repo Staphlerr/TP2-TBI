@@ -278,7 +278,7 @@ class EliasGammaPostings:
     @staticmethod
     def encode(postings_list):
         """Encode postings_list (diubah ke gap-based dulu)"""
-        gap_postings_list = [postings_list[0]]
+        gap_postings_list = [postings_list[0] + 1]
         for i in range(1, len(postings_list)):
             gap_postings_list.append(postings_list[i] - postings_list[i-1])
             
@@ -326,7 +326,7 @@ class EliasGammaPostings:
         if not gap_list:
             return []
             
-        ori_postings_list = [gap_list[0]]
+        ori_postings_list = [gap_list[0] - 1]
         for i in range(1, len(gap_list)):
             ori_postings_list.append(ori_postings_list[-1] + gap_list[i])
             

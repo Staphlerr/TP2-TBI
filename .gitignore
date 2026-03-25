@@ -18,6 +18,5 @@ Thumbs.db
 # Generated files for this project
 index/*
 tmp/*
-__pycache__/
 !index/.gitkeep
 !tmp/.gitkeep

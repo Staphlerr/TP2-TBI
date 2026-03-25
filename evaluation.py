@@ -2,6 +2,7 @@ import re
 from bsbi import BSBIIndex
 from compression import VBEPostings
 import math
+from compression import EliasGammaPostings
 
 ######## >>>>> sebuah IR metric: RBP p = 0.8
 
@@ -102,36 +103,47 @@ def eval(qrels, query_file = "queries.txt", k = 1000):
     untuk setiap query, kembalikan top-1000 documents
   """
   BSBI_instance = BSBIIndex(data_dir = 'collection', \
-                          postings_encoding = VBEPostings, \
+                          postings_encoding = EliasGammaPostings, \
                           output_dir = 'index')
 
+  queries = []
   with open(query_file) as file:
-    rbp_scores = []
-    dcg_scores = []
-    ndcg_scores = []
-    ap_scores = []
-
     for qline in file:
       parts = qline.strip().split()
       qid = parts[0]
       query = " ".join(parts[1:])
+      queries.append((qid, query))
 
-      # HATI-HATI, doc id saat indexing bisa jadi berbeda dengan doc id
-      # yang tertera di qrels
-      ranking = []
-      for (score, doc) in BSBI_instance.retrieve_wand(query, k = k):
-          did = int(re.search(r'\/.*\/.*\/(.*)\.txt', doc).group(1))
-          ranking.append(qrels[qid][did])
-      rbp_scores.append(rbp(ranking))
-      dcg_scores.append(dcg(ranking))
-      ndcg_scores.append(ndcg(ranking))
-      ap_scores.append(ap(ranking))
+  models = [
+      ("TF-IDF Baseline", BSBI_instance.retrieve_tfidf),
+      ("BM25 Scoring", BSBI_instance.retrieve_bm25),
+      ("WAND Top-K Retrieval", BSBI_instance.retrieve_wand)
+  ]
 
-  print("Hasil evaluasi WAND terhadap 30 queries")
-  print(f"RBP score  = {sum(rbp_scores) / len(rbp_scores):.4f}")
-  print(f"DCG score  = {sum(dcg_scores) / len(dcg_scores):.4f}")
-  print(f"NDCG score = {sum(ndcg_scores) / len(ndcg_scores):.4f}")
-  print(f"AP score   = {sum(ap_scores) / len(ap_scores):.4f}")
+  print("==========================================================")
+  print("        EVALUASI SEARCH ENGINE BSBI (30 QUERIES)          ")
+  print("==========================================================")
+
+  for model_name, retrieve_func in models:
+      rbp_scores, dcg_scores, ndcg_scores, ap_scores = [], [], [], []
+      
+      for qid, query in queries:
+          ranking = []
+          for (score, doc) in retrieve_func(query, k = k):
+              did = int(re.search(r'\/.*\/.*\/(.*)\.txt', doc).group(1))
+              ranking.append(qrels[qid][did])
+              
+          rbp_scores.append(rbp(ranking))
+          dcg_scores.append(dcg(ranking))
+          ndcg_scores.append(ndcg(ranking))
+          ap_scores.append(ap(ranking))
+
+      print(f"--- Hasil {model_name} ---")
+      print(f"RBP score  = {sum(rbp_scores) / len(rbp_scores):.4f}")
+      print(f"DCG score  = {sum(dcg_scores) / len(dcg_scores):.4f}")
+      print(f"NDCG score = {sum(ndcg_scores) / len(ndcg_scores):.4f}")
+      print(f"AP score   = {sum(ap_scores) / len(ap_scores):.4f}")
+      print()
 
 if __name__ == '__main__':
   qrels = load_qrels()
