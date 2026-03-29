@@ -2,47 +2,71 @@ class TrieNode:
     def __init__(self):
         self.children = {}  
         self.is_end_of_word = False
-        
-        # --- Atribut khusus untuk Search Engine ---
         self.term_id = None      
-        self.doc_freq = 0         
-        self.postings_offset = -1 
 
-class Trie:
+class TrieIdMap:
+    """
+    Pengganti IdMap menggunakan struktur data Trie untuk menyimpan
+    term-term dictionary. Memenuhi syarat Bonus Opsi 2 (TBI).
+    """
     def __init__(self):
         self.root = TrieNode()
-        self.current_term_id = 0 
+        self.id_to_str = []
 
-    def insert(self, word):
+    def __len__(self):
+        """Mengembalikan banyaknya term yang disimpan di Trie."""
+        return len(self.id_to_str)
+
+    def __get_str(self, i):
+        """Mengembalikan string yang terasosiasi dengan index i."""
+        return self.id_to_str[i]
+
+    def __get_id(self, s):
         """
-        Memasukkan kata ke dalam Trie.
-        Mengembalikan term_id dari kata tersebut (baru atau sudah ada).
+        Mencari id dengan menyusuri (traversing) Trie.
+        Kompleksitas O(m) di mana m adalah panjang karakter string.
         """
         node = self.root
-        for char in word:
+        for char in s:
             if char not in node.children:
                 node.children[char] = TrieNode()
             node = node.children[char]
         
         if not node.is_end_of_word:
             node.is_end_of_word = True
-            node.term_id = self.current_term_id
-            self.current_term_id += 1
+            node.term_id = len(self.id_to_str)
+            self.id_to_str.append(s)
             
-        node.doc_freq += 1
         return node.term_id
 
-    def search(self, word):
+    def __getitem__(self, key):
+        """Special method agar bisa diakses menggunakan kurung siku [...]"""
+        if type(key) is int:
+            return self.__get_str(key)
+        elif type(key) is str:
+            return self.__get_id(key)
+        else:
+            raise TypeError
+
+    def __contains__(self, key):
         """
-        Mencari kata di Trie.
-        Mengembalikan objek TrieNode jika ketemu, atau None jika tidak ada.
+        Mengecek apakah suatu kata ada di dalam Trie.
+        Sangat efisien karena hanya menyusuri cabang yang diperlukan.
         """
-        node = self.root
-        for char in word:
-            if char not in node.children:
-                return None
-            node = node.children[char]
-            
-        if node.is_end_of_word:
-            return node 
-        return None
+        if type(key) is str:
+            node = self.root
+            for char in key:
+                if char not in node.children:
+                    return False
+                node = node.children[char]
+            return node.is_end_of_word
+        return False
+        
+    @property
+    def str_to_id(self):
+        """
+        Trick/Wrapper: Karena di bsbi.py banyak kode yang memanggil 
+        'word in self.term_id_map.str_to_id', property ini akan mengembalikan 
+        class ini sendiri sehingga akan memicu fungsi __contains__ di atas.
+        """
+        return self

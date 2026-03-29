@@ -8,6 +8,7 @@ import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import svds
 import faiss
+from trie import TrieIdMap
 
 from index import InvertedIndexReader, InvertedIndexWriter
 from util import IdMap, sorted_merge_posts_and_tfs
@@ -28,7 +29,7 @@ class BSBIIndex:
     index_name(str): Nama dari file yang berisi inverted index
     """
     def __init__(self, data_dir, output_dir, postings_encoding, index_name = "main_index"):
-        self.term_id_map = IdMap()
+        self.term_id_map = TrieIdMap()
         self.doc_id_map = IdMap()
         self.data_dir = data_dir
         self.output_dir = output_dir

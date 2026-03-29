@@ -5,6 +5,7 @@ This repository contains a from-scratch implementation of a basic search engine 
 ## Key Features Implemented
 
 * **Blocked Sort-Based Indexing (BSBI):** A scalable indexing technique that constructs the inverted index in blocks, writes them to disk, and merges them, ensuring memory efficiency for large document collections.
+* **Trie-based Dictionary (Prefix Tree):** Replaced the standard Python hash map (`dict`) with a custom Trie data structure (`TrieIdMap`) for term dictionary storage. This provides stable `O(m)` time complexity for term lookups and insertions (where `m` is the term length) and avoids hash collision inefficiencies.
 * **Bit-Level Compression (Elias-Gamma):** Implemented a custom bit-level compression algorithm (Elias-Gamma) to significantly reduce the disk space required for postings lists and term frequencies, outperforming the standard Variable-Byte Encoding (VBE). *Includes a +1 shift mechanism to handle zero-values mathematically.*
 * **BM25 Scoring Model:** Upgraded the baseline TF-IDF scoring to the Okapi BM25 ranking function. This provides more accurate document retrieval by incorporating term frequency saturation and document length normalization (using pre-computed average document lengths).
 * **WAND (Weak AND) Top-K Retrieval:** Implemented a Document-at-a-Time (DaaT) processing strategy with the WAND algorithm. By utilizing pre-computed upper bounds (Max TF) for each term, the engine performs early termination, significantly accelerating query response times while yielding the exact same accuracy as standard BM25.
@@ -27,7 +28,7 @@ This repository contains a from-scratch implementation of a basic search engine 
 * `index.py`: Handles the reading and writing (I/O) of the inverted index to disk, storing term upper bounds and document lengths.
 * `compression.py`: Contains Elias-Gamma compression schemes (alongside standard and VBE).
 * `util.py`: Utility functions, including ID mapping and postings merging.
-* `trie.py`: Implementation of the Trie data structure.
+* `trie.py`: Implementation of the `TrieNode` and `TrieIdMap` used as the primary dictionary for the inverted index.
 * `search.py`: A script to perform interactive Top-K searches comparing all implemented retrieval methods simultaneously.
 * `evaluation.py`: Evaluates the search engine's performance dynamically using `qrels.txt` and `queries.txt`.
 
@@ -62,7 +63,7 @@ Before searching, you must build the inverted index and the FAISS vector index. 
 ```bash
 python bsbi.py
 ```
-*This process will parse the documents, create intermediate indices in `tmp/`, merge them, and then run SVD to generate the FAISS semantic index in the `index/` folder.*
+*This process will parse the documents using the Trie dictionary, create intermediate indices in `tmp/`, merge them, and then run SVD to generate the FAISS semantic index in the `index/` folder.*
 
 ### 2. Evaluating the Search Engine
 To test the system's accuracy against the provided 30 queries (`queries.txt`) and view the comparative evaluation scores (RBP, DCG, NDCG, AP) for TF-IDF, BM25, WAND, and LSI-FAISS, run:
