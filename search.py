@@ -14,7 +14,8 @@ queries = ["alkylated with radioactive iodoacetate", \
 models = {
     "TF-IDF": BSBI_instance.retrieve_tfidf,
     "BM25": BSBI_instance.retrieve_bm25,
-    "WAND": BSBI_instance.retrieve_wand
+    "WAND": BSBI_instance.retrieve_wand,
+    "LSI-FAISS": BSBI_instance.retrieve_lsi
 }
            
 for query in queries:

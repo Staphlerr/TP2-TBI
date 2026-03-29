@@ -117,7 +117,8 @@ def eval(qrels, query_file = "queries.txt", k = 1000):
   models = [
       ("TF-IDF Baseline", BSBI_instance.retrieve_tfidf),
       ("BM25 Scoring", BSBI_instance.retrieve_bm25),
-      ("WAND Top-K Retrieval", BSBI_instance.retrieve_wand)
+      ("WAND Top-K Retrieval", BSBI_instance.retrieve_wand),
+      ("LSI-FAISS", BSBI_instance.retrieve_lsi)
   ]
 
   print("==========================================================")

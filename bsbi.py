@@ -4,6 +4,10 @@ import contextlib
 import heapq
 import time
 import math
+import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.linalg import svds
+import faiss
 
 from index import InvertedIndexReader, InvertedIndexWriter
 from util import IdMap, sorted_merge_posts_and_tfs
@@ -378,6 +382,88 @@ class BSBIIndex:
 
             docs = [(score, self.doc_id_map[doc_id]) for score, doc_id in sorted(heap, reverse=True)]
             return docs
+    
+    def build_lsi(self, k_dim=100):
+        """
+        Membangun model Latent Semantic Indexing (LSI) dan meng-index 
+        vektor dokumen menggunakan FAISS.
+        """
+        
+        row_indices = [] 
+        col_indices = []
+        data_values = [] 
+        
+        with InvertedIndexReader(self.index_name, self.postings_encoding, directory=self.output_dir) as merged_index:
+            N = len(merged_index.doc_length)
+            for term_id in tqdm(merged_index.postings_dict.keys()):
+                df = merged_index.postings_dict[term_id][1]
+                idf = math.log(N / df)
+                
+                postings, tf_list = merged_index.get_postings_list(term_id)
+                for i in range(len(postings)):
+                    doc_id = postings[i]
+                    tf = tf_list[i]
+                    weight = (1 + math.log(tf)) * idf
+                    
+                    row_indices.append(doc_id)
+                    col_indices.append(term_id)
+                    data_values.append(weight)
+        
+        num_docs = max(row_indices) + 1
+        num_terms = max(col_indices) + 1
+        sparse_matrix = csr_matrix((data_values, (row_indices, col_indices)), 
+                                   shape=(num_docs, num_terms), dtype=np.float32)
+        
+        k_dim = min(k_dim, min(num_docs, num_terms) - 1) 
+        U, Sigma, VT = svds(sparse_matrix, k=k_dim)
+        doc_vectors = np.dot(U, np.diag(Sigma)).astype('float32')
+        
+        faiss.normalize_L2(doc_vectors) 
+        self.faiss_index = faiss.IndexFlatIP(k_dim)
+        self.faiss_index.add(doc_vectors)
+        
+        self.VT = VT.astype('float32')
+        self.Sigma_inv = np.diag(1.0 / Sigma).astype('float32')
+        
+        faiss.write_index(self.faiss_index, os.path.join(self.output_dir, 'lsi.index'))
+        with open(os.path.join(self.output_dir, 'svd_components.pkl'), 'wb') as f:
+            pickle.dump((self.VT, self.Sigma_inv, num_terms, N), f)
+    
+    def retrieve_lsi(self, query, k=10):
+        """
+        Melakukan pencarian semantik menggunakan LSI dan FAISS.
+        """
+        if not hasattr(self, 'faiss_index'):
+            self.faiss_index = faiss.read_index(os.path.join(self.output_dir, 'lsi.index'))
+            with open(os.path.join(self.output_dir, 'svd_components.pkl'), 'rb') as f:
+                self.VT, self.Sigma_inv, self.num_terms, self.N_docs = pickle.load(f)
+            self.load() 
+
+        query_vector = np.zeros((1, self.num_terms), dtype=np.float32)
+        
+        with InvertedIndexReader(self.index_name, self.postings_encoding, directory=self.output_dir) as merged_index:
+            for word in query.split():
+                if word in self.term_id_map.str_to_id:
+                    term_id = self.term_id_map[word]
+                    df = merged_index.postings_dict[term_id][1]
+                    idf = math.log(self.N_docs / df)
+                    query_vector[0, term_id] = idf 
+                    
+        query_lsi = np.dot(np.dot(query_vector, self.VT.T), self.Sigma_inv)
+        if np.all(query_vector == 0):
+            return []
+
+        faiss.normalize_L2(query_lsi)
+        scores, doc_ids = self.faiss_index.search(query_lsi, k)
+        results = []
+        for i in range(len(doc_ids[0])):
+            did = int(doc_ids[0][i])
+            score = float(scores[0][i])
+            
+            if did != -1 and did < len(self.doc_id_map.id_to_str): 
+                results.append((score, self.doc_id_map[did]))
+                
+        return results
 
     def index(self):
         """
@@ -405,6 +491,7 @@ class BSBIIndex:
                 indices = [stack.enter_context(InvertedIndexReader(index_id, self.postings_encoding, directory=self.output_dir))
                                for index_id in self.intermediate_indices]
                 self.merge(indices, merged_index)
+                self.build_lsi(k_dim=100)
 
 
 if __name__ == "__main__":
